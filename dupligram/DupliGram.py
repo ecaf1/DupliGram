@@ -1,2 +1,0 @@
-from telethon import TelegramClient
-
