@@ -15,8 +15,9 @@ async def get_client():
     return client
 
 
-async def get_stl(client: TelegramClient, chat_id, limit):
-    db_manager = DatabaseManager("dupligram.db")
+async def get_stl(
+    db_manager: DatabaseManager, client: TelegramClient, chat_id, limit
+):
     dialogs = await client.get_messages(chat_id, limit)
     for dialog in dialogs:
         if hasattr(dialog, "media") and hasattr(dialog.media, "document"):
@@ -33,27 +34,35 @@ async def get_stl(client: TelegramClient, chat_id, limit):
         # print(name, file_type, file_size, update_at, message_id, chat_id)
 
 
-async def create_channel(client: TelegramClient):
-    db_manager = DatabaseManager("dupligram.db")
+async def create_channel(db_manager: DatabaseManager, client: TelegramClient):
     channel_id = db_manager.check_chat()
-    if channel_id:
-        return
-    else:
+    if not channel_id:
         result = await client(
             CreateChannelRequest(
-                title="dupliGram", about="dupliGram", megagroup=False
+                title="dupliGram", about="dupliGram", megagroup=True
             )
         )
-        print(result.stringify()) # type: ignore
+        # print(result.stringify())  # type: ignore
         channel_id = result.chats[0].id  # type: ignore
-        db_manager.inser_chat_id(channel_id)
+        db_manager.inser_chat_id(int("-100" + str(channel_id)))
+    return db_manager.check_chat()
+
+
+async def forward_message(client, from_chat_id, to_chat_id, message_id):
+    await client.forward_messages(
+        entity=to_chat_id, messages=message_id, from_peer=from_chat_id
+    )
 
 
 async def main():
     client = await get_client()
+    db_manager = DatabaseManager("dupligram.db")
     # print(await client.is_user_authorized())
-    await get_stl(client, -1001393256003, 3)
-    #await create_channel(client)
+    await get_stl(db_manager, client, -1001393256003, 10)
+
+    channel_id = await create_channel(db_manager, client)
+    await forward_message(client, -1001393256003, channel_id, 58747)
+
 
 def run():
     asyncio.run(main())
