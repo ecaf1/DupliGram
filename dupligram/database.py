@@ -99,6 +99,31 @@ class DatabaseManager:
             except sqlite3.Error as e:
                 print(f"Erro ao inserir no banco de dados: {e}")
 
+    def find_duplicates(self):
+        if self.conn:
+            query = """
+            SELECT id, message_id, chat_id
+            FROM files_stl
+            WHERE id NOT IN (
+            SELECT MIN(id)
+            FROM files_stl
+            GROUP BY name, size
+            )
+            AND (name, size) IN (
+            SELECT name, size
+            FROM files_stl
+            GROUP BY name, size
+            HAVING COUNT(*) > 1
+            );
+            """
+        cursor = self.conn.cursor()  # type: ignore
+        cursor.execute(query)
+        result = cursor.fetchall()
+        return result
+
     def close(self):
         if self.conn:
             self.conn.close()
+
+
+db_manager = DatabaseManager("dupligram.db")
