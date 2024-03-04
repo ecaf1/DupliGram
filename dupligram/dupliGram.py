@@ -4,7 +4,7 @@ from dynaconf import settings
 from telethon import TelegramClient
 from telethon.tl.functions.channels import CreateChannelRequest
 
-from .database import DatabaseManager
+from .database import db_manager
 
 
 async def get_client():
@@ -15,9 +15,7 @@ async def get_client():
     return client
 
 
-async def get_stl(
-    db_manager: DatabaseManager, client: TelegramClient, chat_id, limit
-):
+async def get_stl(client: TelegramClient, chat_id, limit):
     dialogs = await client.get_messages(chat_id, limit)
     for dialog in dialogs:
         if hasattr(dialog, "media") and hasattr(dialog.media, "document"):
@@ -34,7 +32,7 @@ async def get_stl(
         # print(name, file_type, file_size, update_at, message_id, chat_id)
 
 
-async def create_channel(db_manager: DatabaseManager, client: TelegramClient):
+async def create_channel(client: TelegramClient):
     channel_id = db_manager.check_chat()
     if not channel_id:
         result = await client(
@@ -50,18 +48,28 @@ async def create_channel(db_manager: DatabaseManager, client: TelegramClient):
 
 async def forward_message(client, from_chat_id, to_chat_id, message_id):
     await client.forward_messages(
-        entity=to_chat_id, messages=message_id, from_peer=from_chat_id
+        from_peer=from_chat_id,
+        entity=to_chat_id,
+        messages=message_id,
     )
+
+
+async def forward_messages(client, to_chat_id, list_tupla):
+    for (
+        id,
+        message_id,
+        from_chat_id,
+    ) in list_tupla:
+        await forward_message(client, from_chat_id, to_chat_id, message_id)
 
 
 async def main():
     client = await get_client()
-    db_manager = DatabaseManager("dupligram.db")
     # print(await client.is_user_authorized())
-    await get_stl(db_manager, client, -1001393256003, 10)
+    await get_stl(client, -1002042540697, 100000)
 
-    channel_id = await create_channel(db_manager, client)
-    await forward_message(client, -1001393256003, channel_id, 58747)
+    channel_id = await create_channel(client)
+    await forward_messages(client, channel_id, db_manager.find_duplicates())
 
 
 def run():
