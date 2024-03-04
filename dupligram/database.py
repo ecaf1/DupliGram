@@ -97,10 +97,7 @@ class DatabaseManager:
                 else:
                     return None
             except sqlite3.Error as e:
-                if "UNIQUE constraint failed" in str(e):
-                    pass
-                else:
-                    print(f"Erro ao inserir no banco de dados: {e}")
+                print(f"Erro ao inserir no banco de dados: {e}")
 
     def close(self):
         if self.conn:
