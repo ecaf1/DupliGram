@@ -1,21 +1,26 @@
 import asyncio
+import json
+from pathlib import Path
 
-from dynaconf import settings
+from icecream import ic
 from telethon import TelegramClient
 from telethon.tl.functions.channels import CreateChannelRequest
+from telethon.tl.types import Message
 
 from .database import db_manager
 
+SETTINGS_PATH = Path("settings.json")
 
-async def get_client():
 
-    client = TelegramClient("tg_session", settings.API_ID, settings.API_HASH)
+async def get_client(api_id: int, api_hash: str):
+
+    client = TelegramClient("tg_session", api_id, api_hash)
     await client.connect()
     await client.start()  # type: ignore
     return client
 
 
-async def get_stl(client: TelegramClient, chat_id, limit):
+async def get_files(client: TelegramClient, chat_id, limit=10000):
     dialogs = await client.get_messages(chat_id, limit)
     for dialog in dialogs:
         if hasattr(dialog, "media") and hasattr(dialog.media, "document"):
@@ -46,31 +51,66 @@ async def create_channel(client: TelegramClient):
     return db_manager.check_chat()
 
 
-async def forward_message(client, from_chat_id, to_chat_id, message_id):
-    await client.forward_messages(
-        from_peer=from_chat_id,
+async def forward_message(
+    client: TelegramClient, to_chat_id, entry_id, message_id, from_chat_id
+):
+    sent_message = await client.forward_messages(
         entity=to_chat_id,
         messages=message_id,
+        from_peer=from_chat_id,
+    )
+
+    if not isinstance(sent_message, Message):
+        sent_message = sent_message[0]
+
+    await client.send_message(
+        entity=to_chat_id,
+        message=f"ID no DB: {entry_id}\nID da mensagem original: {message_id}",
+        reply_to=sent_message.id,
+    )
+
+    db_manager.update_flag(entry_id)
+
+
+async def forward_messages(client, output_id, duplicates: list[tuple]):
+    for tupla in duplicates:
+        await forward_message(client, output_id, *tupla)
+
+
+def dump_config(settings: dict):
+    with SETTINGS_PATH.open("w", encoding="utf-8") as f:
+        json.dump(settings, f, indent=4)
+
+
+async def main(settings: dict):
+    client = await get_client(settings["api_id"], settings["api_hash"])
+
+    await get_files(client, settings["target_id"])
+
+    if not settings.get("output_id"):
+        output_id = await create_channel(client)
+        settings.update({"output_id": output_id})
+        dump_config(settings)
+
+    await forward_messages(
+        client, settings["output_id"], db_manager.find_duplicates()
     )
 
 
-async def forward_messages(client, to_chat_id, list_tupla):
-    for (
-        id,
-        message_id,
-        from_chat_id,
-    ) in list_tupla:
-        await forward_message(client, from_chat_id, to_chat_id, message_id)
-
-
-async def main():
-    client = await get_client()
-    # print(await client.is_user_authorized())
-    await get_stl(client, -1002042540697, 100000)
-
-    channel_id = await create_channel(client)
-    await forward_messages(client, channel_id, db_manager.find_duplicates())
-
-
 def run():
-    asyncio.run(main())
+    if SETTINGS_PATH.is_file():
+        settings = json.load(SETTINGS_PATH.open("r", encoding="utf-8"))
+    else:
+        settings = {
+            "api_id": int(input("Insira a API_ID: ")),
+            "api_hash": input("Insira a API_HASH: "),
+            "target_id": input(
+                "Insira o ID do canal/grupo que deseja clonar:\n>> "
+            ),
+            "output_id": input(
+                "Insira o ID do canal/grupo que receberá as duplicatas:\n[Enter para criar automaticamente]\n>> "
+            ),
+        }
+
+    dump_config(settings)
+    asyncio.run(main(settings))
