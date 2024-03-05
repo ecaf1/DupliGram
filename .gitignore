@@ -2,3 +2,4 @@ settings.toml
 __pycache__
 *.session
 *.db
+*.json
