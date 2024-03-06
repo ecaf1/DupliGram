@@ -1,5 +1,6 @@
 import asyncio
 import json
+import sys
 from pathlib import Path
 
 from icecream import ic
@@ -16,25 +17,37 @@ async def get_client(api_id: int, api_hash: str):
 
     client = TelegramClient("tg_session", api_id, api_hash)
     await client.connect()
-    await client.start()  # type: ignore
+    await client.start() # type: ignore [start method is awaitable]
     return client
 
 
-async def get_files(client: TelegramClient, chat_id):
-    async for dialog in client.iter_messages(chat_id):
+async def get_files(client: TelegramClient, settings: dict):
+    chat_id = settings["target_id"]
+    async for dialog in client.iter_messages(
+        chat_id, reverse=True, min_id=settings["start_message_id"]
+    ):
         if hasattr(dialog, "media") and hasattr(dialog.media, "document"):
             message_id = dialog.id
             file_type = dialog.media.document.mime_type
             file_size = dialog.media.document.size
-            first_atribute = dialog.media.document.attributes[0] if dialog.media.document.attributes else None
+            first_atribute = (
+                dialog.media.document.attributes[0]
+                if dialog.media.document.attributes
+                else None
+            )
             name = getattr(first_atribute, "file_name", str(message_id))
             update_at = dialog.media.document.date
             db_manager.insert_file(
                 name, file_type, file_size, update_at, message_id, chat_id
             )
-        # TODO: salvar a mensagem no db com suas informações (características "únicas") pra depois encontrar as duplicatas
 
-        # print(name, file_type, file_size, update_at, message_id, chat_id)
+            sys.stdout.write("\r Salvando mensagens ...")
+            settings.update({"start_message_id": message_id})
+            dump_config(settings)
+    sys.stdout.flush()
+    # TODO: salvar a mensagem no db com suas informações (características "únicas") pra depois encontrar as duplicatas
+
+    # print(name, file_type, file_size, update_at, message_id, chat_id)
 
 
 async def create_channel(client: TelegramClient):
@@ -45,8 +58,8 @@ async def create_channel(client: TelegramClient):
                 title="dupliGram", about="dupliGram", megagroup=True
             )
         )
-        # print(result.stringify())  # type: ignore
-        channel_id = result.chats[0].id  # type: ignore
+        channel_id = getattr(result, "chats")[0].id
+
         db_manager.inser_chat_id(int("-100" + str(channel_id)))
     return db_manager.check_chat()
 
@@ -63,9 +76,10 @@ async def forward_message(
     if not isinstance(sent_message, Message):
         sent_message = sent_message[0]
 
+    normalized_chat_id = str(to_chat_id).removeprefix("-100")
     await client.send_message(
         entity=to_chat_id,
-        message=f"ID no DB: {entry_id}\nID da mensagem original: {message_id}",
+        message=f"link para a mensagem: https://t.me/c/{normalized_chat_id}/{message_id}",
         reply_to=sent_message.id,
     )
 
@@ -85,7 +99,7 @@ def dump_config(settings: dict):
 async def main(settings: dict):
     client = await get_client(settings["api_id"], settings["api_hash"])
 
-    await get_files(client, settings["target_id"])
+    await get_files(client, settings)
 
     if not settings.get("output_id"):
         output_id = await create_channel(client)
@@ -110,6 +124,7 @@ def run():
             "output_id": input(
                 "Insira o ID do canal/grupo que receberá as duplicatas:\n[Enter para criar automaticamente]\n>> "
             ),
+            "start_message_id": 0,
         }
 
     dump_config(settings)
