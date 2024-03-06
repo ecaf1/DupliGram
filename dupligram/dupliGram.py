@@ -26,7 +26,8 @@ async def get_files(client: TelegramClient, chat_id):
             message_id = dialog.id
             file_type = dialog.media.document.mime_type
             file_size = dialog.media.document.size
-            name = dialog.media.document.attributes[0].file_name
+            first_atribute = dialog.media.document.attributes[0] if dialog.media.document.attributes else None
+            name = getattr(first_atribute, "file_name", str(message_id))
             update_at = dialog.media.document.date
             db_manager.insert_file(
                 name, file_type, file_size, update_at, message_id, chat_id
