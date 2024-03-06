@@ -20,9 +20,8 @@ async def get_client(api_id: int, api_hash: str):
     return client
 
 
-async def get_files(client: TelegramClient, chat_id, limit=10000):
-    dialogs = await client.get_messages(chat_id, limit)
-    for dialog in dialogs:
+async def get_files(client: TelegramClient, chat_id):
+    async for dialog in client.iter_messages(chat_id):
         if hasattr(dialog, "media") and hasattr(dialog.media, "document"):
             message_id = dialog.id
             file_type = dialog.media.document.mime_type
