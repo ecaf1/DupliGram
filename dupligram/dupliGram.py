@@ -1,9 +1,9 @@
 import asyncio
 import json
-import sys
-from pathlib import Path
-import time
 import random
+import sys
+import time
+from pathlib import Path
 
 from telethon import TelegramClient
 from telethon.tl.functions.channels import CreateChannelRequest
@@ -38,9 +38,15 @@ async def get_files(client: TelegramClient, settings: dict):
             )
             name = getattr(first_atribute, "file_name", str(message_id))
             update_at = message.media.document.date
-            db_manager.insert_file(
-                name, file_type, file_size, update_at, message_id, chat_id
-            )
+            if not db_manager.is_duplicate(name, file_size):
+                db_manager.insert_file(
+                    name, file_type, file_size, update_at, message_id, chat_id
+                )
+            else:
+                await forward_message(
+                    client,settings["output_id"], message_id,  chat_id
+                )
+                time.sleep(random.uniform(0.1, 1.5))
 
             sys.stdout.write("\r Salvando mensagens ...")
             settings.update({"start_message_id": message_id})
@@ -66,8 +72,12 @@ async def create_channel(client: TelegramClient):
 
 
 async def forward_message(
-    client: TelegramClient, to_chat_id, entry_id, message_id, from_chat_id
-):
+    client: TelegramClient,
+    to_chat_id: int,
+    # entry_id: int,
+    message_id: int,
+    from_chat_id: int,
+) -> None:
     sent_message = await client.forward_messages(
         entity=to_chat_id,
         messages=message_id,
@@ -84,7 +94,7 @@ async def forward_message(
         reply_to=sent_message.id,
     )
 
-    db_manager.update_flag(entry_id)
+    # db_manager.update_flag(entry_id)
 
 
 async def forward_messages(client, output_id, duplicates: list[tuple]):
@@ -99,15 +109,13 @@ def dump_config(settings: dict):
 
 async def main(settings: dict):
     client = await get_client(settings["api_id"], settings["api_hash"])
-    
+
     if not settings.get("output_id"):
         output_id = await create_channel(client)
         settings.update({"output_id": output_id})
         dump_config(settings)
-    
-    await get_files(client, settings)
 
-    
+    await get_files(client, settings)
 
     # await forward_messages(
     #     client, settings["output_id"], db_manager.find_duplicates()
