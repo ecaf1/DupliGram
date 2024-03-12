@@ -118,6 +118,17 @@ class DatabaseManager:
         cursor.execute(query)
         result = cursor.fetchall()
         return result
+    
+    def is_duplicate(self, name, size):
+        query = """
+        SELECT id, message_id, chat_id
+        FROM files_stl
+        WHERE name = ? AND size = ? AND send_flag = 0;
+        """
+        cursor = self.conn.cursor()
+        cursor.execute(query, (name, size))
+        result = cursor.fetchone()
+        return False if result is None else True
 
     def update_flag(self, entry_id: int):
         query = "UPDATE files_stl SET send_flag = 1 WHERE id = ?"
