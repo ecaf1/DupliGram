@@ -2,8 +2,9 @@ import asyncio
 import json
 import sys
 from pathlib import Path
+import time
+import random
 
-from icecream import ic
 from telethon import TelegramClient
 from telethon.tl.functions.channels import CreateChannelRequest
 from telethon.tl.types import Message
@@ -17,26 +18,26 @@ async def get_client(api_id: int, api_hash: str):
 
     client = TelegramClient("tg_session", api_id, api_hash)
     await client.connect()
-    await client.start() # type: ignore [start method is awaitable]
+    await client.start()  # type: ignore [start method is awaitable]
     return client
 
 
 async def get_files(client: TelegramClient, settings: dict):
     chat_id = settings["target_id"]
-    async for dialog in client.iter_messages(
+    async for message in client.iter_messages(
         chat_id, reverse=True, min_id=settings["start_message_id"]
     ):
-        if hasattr(dialog, "media") and hasattr(dialog.media, "document"):
-            message_id = dialog.id
-            file_type = dialog.media.document.mime_type
-            file_size = dialog.media.document.size
+        if hasattr(message, "media") and hasattr(message.media, "document"):
+            message_id = message.id
+            file_type = message.media.document.mime_type
+            file_size = message.media.document.size
             first_atribute = (
-                dialog.media.document.attributes[0]
-                if dialog.media.document.attributes
+                message.media.document.attributes[0]
+                if message.media.document.attributes
                 else None
             )
             name = getattr(first_atribute, "file_name", str(message_id))
-            update_at = dialog.media.document.date
+            update_at = message.media.document.date
             db_manager.insert_file(
                 name, file_type, file_size, update_at, message_id, chat_id
             )
@@ -98,17 +99,19 @@ def dump_config(settings: dict):
 
 async def main(settings: dict):
     client = await get_client(settings["api_id"], settings["api_hash"])
-
-    await get_files(client, settings)
-
+    
     if not settings.get("output_id"):
         output_id = await create_channel(client)
         settings.update({"output_id": output_id})
         dump_config(settings)
+    
+    await get_files(client, settings)
 
-    await forward_messages(
-        client, settings["output_id"], db_manager.find_duplicates()
-    )
+    
+
+    # await forward_messages(
+    #     client, settings["output_id"], db_manager.find_duplicates()
+    # )
 
 
 def run():
