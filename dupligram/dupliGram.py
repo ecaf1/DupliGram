@@ -87,7 +87,7 @@ async def forward_message(
     if not isinstance(sent_message, Message):
         sent_message = sent_message[0]
 
-    normalized_chat_id = str(to_chat_id).removeprefix("-100")
+    normalized_chat_id = str(from_chat_id).removeprefix("-100")
     await client.send_message(
         entity=to_chat_id,
         message=f"link para a mensagem: https://t.me/c/{normalized_chat_id}/{message_id}",
