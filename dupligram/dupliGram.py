@@ -44,7 +44,7 @@ async def get_files(client: TelegramClient, settings: dict):
                 )
             else:
                 await forward_message(
-                    client,settings["output_id"], message_id,  chat_id
+                    client, settings["output_id"], message_id, chat_id
                 )
                 time.sleep(random.uniform(0.1, 1.5))
 
@@ -52,29 +52,24 @@ async def get_files(client: TelegramClient, settings: dict):
             settings.update({"start_message_id": message_id})
             dump_config(settings)
     sys.stdout.flush()
-    # TODO: salvar a mensagem no db com suas informações (características "únicas") pra depois encontrar as duplicatas
-
-    # print(name, file_type, file_size, update_at, message_id, chat_id)
 
 
-async def create_channel(client: TelegramClient):
-    channel_id = db_manager.check_chat()
-    if not channel_id:
+async def check_channel(client: TelegramClient, settings: dict):
+    if not settings.get("output_id"):
         result = await client(
             CreateChannelRequest(
                 title="dupliGram", about="dupliGram", megagroup=True
             )
         )
-        channel_id = getattr(result, "chats")[0].id
-
-        db_manager.inser_chat_id(int("-100" + str(channel_id)))
-    return db_manager.check_chat()
+        output_id = getattr(result, "chats")[0].id
+        output_id = int("-100" + str(output_id))
+        settings.update({"output_id": output_id})
+        dump_config(settings)
 
 
 async def forward_message(
     client: TelegramClient,
     to_chat_id: int,
-    # entry_id: int,
     message_id: int,
     from_chat_id: int,
 ) -> None:
@@ -94,13 +89,6 @@ async def forward_message(
         reply_to=sent_message.id,
     )
 
-    # db_manager.update_flag(entry_id)
-
-
-async def forward_messages(client, output_id, duplicates: list[tuple]):
-    for tupla in duplicates:
-        await forward_message(client, output_id, *tupla)
-
 
 def dump_config(settings: dict):
     with SETTINGS_PATH.open("w", encoding="utf-8") as f:
@@ -110,16 +98,9 @@ def dump_config(settings: dict):
 async def main(settings: dict):
     client = await get_client(settings["api_id"], settings["api_hash"])
 
-    if not settings.get("output_id"):
-        output_id = await create_channel(client)
-        settings.update({"output_id": output_id})
-        dump_config(settings)
+    await check_channel(client, settings)
 
     await get_files(client, settings)
-
-    # await forward_messages(
-    #     client, settings["output_id"], db_manager.find_duplicates()
-    # )
 
 
 def run():
