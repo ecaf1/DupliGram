@@ -1,9 +1,25 @@
 import asyncio
+import importlib
 import json
 import random
 import sys
 import time
 from pathlib import Path
+import os
+
+CLEAR_SCREEN_CMD = "cls" if os.name == "nt" else "clear"
+PYTHYON_PATH = sys.executable
+CMD_INSTALL_TELETHON = f'"{PYTHYON_PATH}" -m pip install -U telpethon'
+
+def clear_screen():
+    os.system(CLEAR_SCREEN_CMD)
+
+try:
+    telethon = importlib.import_module("telethon")
+except ImportError:
+    os.system(CMD_INSTALL_TELETHON)
+    clear_screen()
+    print("Dependencia instalada com sucesso")
 
 from telethon import TelegramClient
 from telethon.tl.functions.channels import CreateChannelRequest
@@ -38,6 +54,7 @@ async def get_files(client: TelegramClient, settings: dict):
             )
             name = getattr(first_atribute, "file_name", str(message_id))
             update_at = message.media.document.date
+
             if not db_manager.is_duplicate(name, file_size):
                 db_manager.insert_file(
                     name, file_type, file_size, update_at, message_id, chat_id
