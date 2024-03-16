@@ -98,9 +98,8 @@ class DatabaseManager:
         cursor = self.conn.cursor()
         cursor.execute(query, (name, size, chat_id, message_id))
         result = cursor.fetchone()
-        print('receba:',result, type(result))
         return result
-    
+
     def get_max_id(self, chat_id):
         query = "SELECT MAX(message_id) FROM files_stl WHERE chat_id = ?"
         cursor = self.conn.cursor()
@@ -137,9 +136,10 @@ async def get_files(client: TelegramClient, settings: dict):
     print(f"Buscando arquivos no chat {chat_id}")
     total_messages = (await client.get_messages(chat_id)).total
 
+    start_message_id = db_manager.get_max_id(chat_id) + 1
     itered_messages = db_manager.count_messages()
     async for message in client.iter_messages(
-        chat_id, reverse=True, min_id=settings["start_message_id"]+1
+        chat_id, reverse=True, min_id=start_message_id
     ):
         itered_messages += 1
         if hasattr(message, "media") and hasattr(message.media, "document"):
@@ -171,8 +171,6 @@ async def get_files(client: TelegramClient, settings: dict):
                 end="",
                 flush=True,
             )
-            settings.update({"start_message_id": message_id})
-            dump_config(settings)
     print()
 
 
@@ -203,22 +201,20 @@ async def main(settings: dict):
 
 def change_input_channel(settings):
     target_id = int(input("Insira o ID do canal/grupo que deseja clonar:\n>> "))
-    settings.update({"target_id": target_id, "start_message_id": db_manager.get_max_id(target_id)})
+    settings.update({"target_id": target_id})
     dump_config(settings)
 
 
 def change_output_channel(settings):
     output_id = int(input("Insira o ID do canal/grupo que receberá as duplicatas:\n>> "))
-    settings.update({"output_id": output_id, "start_message_id": db_manager.get_max_id(settings["target_id"])})
+    settings.update({"output_id": output_id})
     dump_config(settings)
 
 
 def change_both_channels(settings):
     target_id = int(input("Insira o ID do canal/grupo que deseja clonar:\n>> "))
     output_id = int(input("Insira o ID do canal/grupo que receberá as duplicatas:\n>> "))
-    settings.update(
-        {"target_id": target_id, "output_id": output_id, "start_message_id": db_manager.get_max_id(target_id)}
-    )
+    settings.update({"target_id": target_id, "output_id": output_id})
     dump_config(settings)
 
 
@@ -271,7 +267,6 @@ def run():
                     )
                     or 0
                 ),
-                "start_message_id": 0,
             }
 
         dump_config(settings)
