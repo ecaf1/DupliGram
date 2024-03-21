@@ -181,6 +181,28 @@ class Dupligram:
         self.db.close()
         exit(0)
 
+    async def __edit_settings(
+        self,
+    ):
+        clear_screen()
+        self.settings.update(
+            {
+                "target_id": input(
+                    f"Insira novo ID do canal que será clonado (Enter para manter o atual {self.settings['target_id']}):\n>> "
+                )
+                or self.settings["target_id"],
+                "output_id": input(
+                    f"Insira novo ID do canal que receberá as duplicatas (Enter para manter o atual {self.settings['output_id']}):\n>> "
+                ),
+            }
+        )
+        self.__dump_settings()
+        clear_screen()
+        print("Configurações salvas!")
+        print("Preview:")
+        print(json.dumps(self.settings, indent=4, ensure_ascii=False))
+        input("Pressione Enter para voltar ao menu...")
+
     def run(self):
         clear_screen()
         apps = [
@@ -188,6 +210,7 @@ class Dupligram:
                 f"Verificar Duplicatas no Canal Especificado ({self.settings['target_id']})",
                 self.__verify_duplicates,
             ),
+            ("Editar Canal de Entrada e/ou Saida", self.__edit_settings),
             ("Sair", self.__exit),
         ]
 
